@@ -10,37 +10,72 @@ class FeelingsOnlyDialog extends StatefulWidget {
 }
 
 class _FeelingsOnlyDialogState extends State<FeelingsOnlyDialog> {
-  DreamEmotion? _emotion = DreamEmotion.other;
+  final _selectedEmotions = <DreamEmotion>{};
   final _noteController = TextEditingController();
+  final _suggestions = const [
+    'Grateful for small kindness',
+    'Lingering worry from the day',
+    'Sense of protection',
+    'Still figuring out the feeling',
+  ];
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: Theme.of(context).colorScheme.surface,
       title: const Text('How did the dream feel?'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          DropdownButtonFormField<DreamEmotion>(
-            value: _emotion,
-            items: DreamEmotion.values
-                .map(
-                  (e) => DropdownMenuItem(
-                    value: e,
-                    child: Text(e.label),
-                  ),
-                )
-                .toList(),
-            onChanged: (value) => setState(() => _emotion = value),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _noteController,
-            decoration: const InputDecoration(
-              labelText: 'One line note',
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: DreamEmotion.values
+                  .map(
+                    (emotion) => FilterChip(
+                      label: Text(emotion.label),
+                      selected: _selectedEmotions.contains(emotion),
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedEmotions.add(emotion);
+                          } else {
+                            _selectedEmotions.remove(emotion);
+                          }
+                        });
+                      },
+                    ),
+                  )
+                  .toList(),
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            TextField(
+              controller: _noteController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Describe it in a sentence',
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              children: _suggestions
+                  .map(
+                    (suggestion) => ActionChip(
+                      label: Text(suggestion),
+                      onPressed: () {
+                        setState(() {
+                          _noteController.text = suggestion;
+                        });
+                      },
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(
@@ -49,12 +84,17 @@ class _FeelingsOnlyDialogState extends State<FeelingsOnlyDialog> {
         ),
         ElevatedButton(
           onPressed: () {
-            if (_emotion == null) return;
+            if (_selectedEmotions.isEmpty) {
+              _selectedEmotions.add(DreamEmotion.other);
+            }
             final entry = DreamEntry(
               createdAt: DateTime.now(),
-              emotions: [_emotion!],
+              emotions: _selectedEmotions.toList(),
               fragments: [
-                DreamFragmentField(label: 'Emotions', value: _emotion!.label),
+                DreamFragmentField(
+                  label: 'Emotions',
+                  value: _selectedEmotions.map((emotion) => emotion.label).join(', '),
+                ),
                 DreamFragmentField(label: 'Notes', value: _noteController.text.trim()),
               ],
               onlyFeelingsLog: true,

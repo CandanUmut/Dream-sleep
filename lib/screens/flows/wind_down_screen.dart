@@ -4,9 +4,18 @@ import 'package:provider/provider.dart';
 import '../../models/sleep_routine.dart';
 import '../../models/user_preferences.dart';
 import '../../providers/app_state.dart';
+import '../../widgets/dream_background.dart';
+import '../../widgets/frosted_card.dart';
 
-class WindDownScreen extends StatelessWidget {
+class WindDownScreen extends StatefulWidget {
   const WindDownScreen({super.key});
+
+  @override
+  State<WindDownScreen> createState() => _WindDownScreenState();
+}
+
+class _WindDownScreenState extends State<WindDownScreen> {
+  final Set<int> _completedSteps = {};
 
   List<SleepRoutineStep> _buildSteps(UserPreferences preferences) {
     final steps = <SleepRoutineStep>[
@@ -35,42 +44,93 @@ class WindDownScreen extends StatelessWidget {
     return steps;
   }
 
+  double _progress(int count) {
+    if (count == 0) return 0;
+    return _completedSteps.length / count;
+  }
+
   @override
   Widget build(BuildContext context) {
     final preferences = context.watch<AppState>().preferences;
     final steps = _buildSteps(preferences);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Night wind-down'),
-      ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(24),
-        itemCount: steps.length + 1,
-        itemBuilder: (context, index) {
-          if (index == steps.length) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Text(
-                'If you wake feeling drained, be gentle with yourself. Rest comes first. Lucid dreams can wait for when your body feels nourished.',
-              ),
-            );
-          }
-          final step = steps[index];
-          return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(step.title, style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  Text(step.description),
-                ],
-              ),
+    final progress = _progress(steps.length);
+    return Stack(
+      children: [
+        DreamBackground(
+          useSafeArea: false,
+          child: const SizedBox.expand(),
+        ),
+        Scaffold(
+          extendBodyBehindAppBar: true,
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            title: const Text('Night wind-down'),
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+          ),
+          body: DreamBackground(
+            padding: const EdgeInsets.fromLTRB(24, 100, 24, 40),
+            child: ListView(
+              children: [
+                FrostedCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Progress ${(progress * 100).round()}%',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 8,
+                        backgroundColor: Colors.white.withOpacity(0.1),
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Move slowly. Whisper your intention between steps. If a step doesn’t fit tonight, skip it kindly.',
+                      ),
+                    ],
+                  ),
+                ),
+                for (var i = 0; i < steps.length; i++)
+                  FrostedCard(
+                    child: CheckboxListTile(
+                      value: _completedSteps.contains(i),
+                      onChanged: (value) {
+                        setState(() {
+                          if (value == true) {
+                            _completedSteps.add(i);
+                          } else {
+                            _completedSteps.remove(i);
+                          }
+                        });
+                      },
+                      title: Text(steps[i].title),
+                      subtitle: Text(steps[i].description),
+                    ),
+                  ),
+                FrostedCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'If you wake feeling drained, be gentle with yourself. Rest comes first. Lucid dreams can wait for when your body feels nourished.',
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => setState(() => _completedSteps.clear()),
+                  child: const Text('Reset tonight’s progress'),
+                ),
+              ],
             ),
-          );
-        },
-      ),
+          ),
+        ),
+      ],
     );
   }
 }

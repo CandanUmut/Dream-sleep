@@ -5,6 +5,9 @@ import '../../models/dream_entry.dart';
 import '../../providers/app_state.dart';
 import '../../services/audio/audio_recorder_service.dart';
 import '../../services/transcription/local_transcription_service.dart';
+import '../../widgets/dream_background.dart';
+import '../../widgets/frosted_card.dart';
+import '../../widgets/section_header.dart';
 import '../flows/nightmare_support_screen.dart';
 
 class DreamEntryScreen extends StatefulWidget {
@@ -19,12 +22,14 @@ class DreamEntryScreen extends StatefulWidget {
 class _DreamEntryScreenState extends State<DreamEntryScreen> {
   final _titleController = TextEditingController();
   final _transcriptionController = TextEditingController();
+  final _tagController = TextEditingController();
   late List<TextEditingController> _fragmentControllers;
   late List<DreamFragmentField> _fragments;
+  late Set<DreamEmotion> _selectedEmotions;
+  late List<String> _tags;
   bool _lucid = false;
   bool _nightmare = false;
   bool _private = true;
-  DreamEmotion? _selectedEmotion;
   bool _isRecording = false;
   String? _audioPath;
   late AudioRecorderService _recorderService;
@@ -37,12 +42,14 @@ class _DreamEntryScreenState extends State<DreamEntryScreen> {
     _recorderService = AudioRecorderService();
     _transcriptionService = LocalTranscriptionService();
     _fragments = [
-      DreamFragmentField(label: 'People/Characters'),
+      DreamFragmentField(label: 'People / Characters'),
       DreamFragmentField(label: 'Places'),
       DreamFragmentField(label: 'Emotions'),
-      DreamFragmentField(label: 'Symbols/Details'),
+      DreamFragmentField(label: 'Symbols / Details'),
       DreamFragmentField(label: 'Notes'),
     ];
+    _selectedEmotions = {};
+    _tags = [];
     if (widget.existingDream != null) {
       final dream = widget.existingDream!;
       _titleController.text = dream.title;
@@ -51,13 +58,13 @@ class _DreamEntryScreenState extends State<DreamEntryScreen> {
       _nightmare = dream.nightmare;
       _private = dream.privatePreference == DreamPrivacyPreference.private;
       _audioPath = dream.audioPath;
-      _fragments = dream.fragments;
-      _selectedEmotion = dream.emotions.isNotEmpty ? dream.emotions.first : null;
+      if (dream.fragments.isNotEmpty) {
+        _fragments = dream.fragments;
+      }
+      _selectedEmotions = dream.emotions.toSet();
+      _tags = List<String>.from(dream.tags);
     }
-    _fragmentControllers = _fragments.map((fragment) {
-      final controller = TextEditingController(text: fragment.value);
-      return controller;
-    }).toList();
+    _fragmentControllers = _fragments.map((fragment) => TextEditingController(text: fragment.value)).toList();
     _initializeServices();
   }
 
@@ -73,6 +80,7 @@ class _DreamEntryScreenState extends State<DreamEntryScreen> {
     }
     _titleController.dispose();
     _transcriptionController.dispose();
+    _tagController.dispose();
     _recorderService.dispose();
     _transcriptionService.dispose();
     super.dispose();
@@ -109,30 +117,46 @@ class _DreamEntryScreenState extends State<DreamEntryScreen> {
     });
   }
 
+  void _addTag(String tag) {
+    final trimmed = tag.trim();
+    if (trimmed.isEmpty) return;
+    setState(() {
+      if (!_tags.contains(trimmed)) {
+        _tags.add(trimmed);
+      }
+    });
+    _tagController.clear();
+  }
+
+  void _removeTag(String tag) {
+    setState(() => _tags.remove(tag));
+  }
+
+  void _addCustomFragment() {
+    setState(() {
+      final index = _fragments.length + 1;
+      final newField = DreamFragmentField(label: 'Extra detail $index');
+      _fragments = [..._fragments, newField];
+      _fragmentControllers = [..._fragmentControllers, TextEditingController()];
+    });
+  }
+
   Future<void> _save() async {
     setState(() => _isSaving = true);
     final fragments = <DreamFragmentField>[];
     for (var i = 0; i < _fragments.length; i++) {
       fragments.add(_fragments[i].copyWith(value: _fragmentControllers[i].text.trim()));
     }
-    final emotions = <DreamEmotion>[];
-    if (_selectedEmotion != null) {
-      emotions.add(_selectedEmotion!);
-    }
-    final entry = (widget.existingDream ??
-            DreamEntry(
-              createdAt: DateTime.now(),
-            ))
-        .copyWith(
+    final entry = (widget.existingDream ?? DreamEntry(createdAt: DateTime.now())).copyWith(
       title: _titleController.text.trim(),
       transcription: _transcriptionController.text.trim(),
       fragments: fragments,
-      emotions: emotions,
+      emotions: _selectedEmotions.toList(),
       lucid: _lucid,
       nightmare: _nightmare,
-      privatePreference:
-          _private ? DreamPrivacyPreference.private : DreamPrivacyPreference.allowInsights,
+      privatePreference: _private ? DreamPrivacyPreference.private : DreamPrivacyPreference.allowInsights,
       audioPath: _audioPath,
+      tags: _tags,
     );
     await context.read<AppState>().upsertDream(entry);
     if (!mounted) return;
@@ -142,114 +166,224 @@ class _DreamEntryScreenState extends State<DreamEntryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dream entry'),
-        actions: [
-          TextButton(
-            onPressed: _isSaving ? null : _save,
-            child: _isSaving
-                ? const SizedBox(
-                    height: 16,
-                    width: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Save'),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          TextField(
-            controller: _titleController,
-            style: Theme.of(context).textTheme.titleLarge,
-            decoration: const InputDecoration(
-              labelText: 'Title (optional)',
-            ),
-          ),
-          const SizedBox(height: 16),
-          _RecordingButton(
-            isRecording: _isRecording,
-            onTap: _toggleRecording,
-          ),
-          if (_audioPath != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Audio saved locally at $_audioPath',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: _transcribe,
-            icon: const Icon(Icons.auto_fix_high),
-            label: const Text('Transcribe audio'),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _transcriptionController,
-            maxLines: null,
-            decoration: const InputDecoration(
-              labelText: 'Dream story or fragments',
-            ),
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: DreamEmotion.values
-                .map(
-                  (emotion) => ChoiceChip(
-                    label: Text(emotion.label),
-                    selected: _selectedEmotion == emotion,
-                    onSelected: (_) => setState(() => _selectedEmotion = emotion),
-                  ),
-                )
-                .toList(),
-          ),
-          const SizedBox(height: 24),
-          for (var i = 0; i < _fragments.length; i++) ...[
-            TextField(
-              controller: _fragmentControllers[i],
-              minLines: 1,
-              maxLines: 4,
-              decoration: InputDecoration(labelText: _fragments[i].label),
-            ),
-            const SizedBox(height: 12),
-          ],
-          const SizedBox(height: 16),
-          SwitchListTile(
-            value: _lucid,
-            title: const Text('Lucid moment'),
-            subtitle: const Text('Celebrate awareness inside the dream.'),
-            onChanged: (value) => setState(() => _lucid = value),
-          ),
-          SwitchListTile(
-            value: _nightmare,
-            title: const Text('Nightmare / distressing'),
-            subtitle: const Text('We will offer gentle grounding if needed.'),
-            onChanged: (value) => setState(() => _nightmare = value),
-          ),
-          SwitchListTile(
-            value: _private,
-            title: const Text('Keep this private'),
-            subtitle: const Text('Private entries stay out of insights.'),
-            onChanged: (value) => setState(() => _private = value),
-          ),
-          const SizedBox(height: 24),
-          if (_nightmare)
-            ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const NightmareSupportScreen(),
-                ),
+    return Stack(
+      children: [
+        DreamBackground(
+          useSafeArea: false,
+          child: const SizedBox.expand(),
+        ),
+        Scaffold(
+          extendBodyBehindAppBar: true,
+          backgroundColor: Colors.transparent,
+          appBar: AppBar(
+            title: const Text('Dream entry'),
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            actions: [
+              TextButton(
+                onPressed: _isSaving ? null : _save,
+                child: _isSaving
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Save'),
               ),
-              icon: const Icon(Icons.favorite),
-              label: const Text('I need soothing'),
+            ],
+          ),
+          body: DreamBackground(
+            padding: const EdgeInsets.fromLTRB(24, 100, 24, 120),
+            child: ListView(
+              children: [
+                FrostedCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SectionHeader(
+                        title: 'Name and tag the dream',
+                        subtitle: 'Optional, but helps insights recognise patterns.',
+                        padding: EdgeInsets.only(bottom: 12),
+                      ),
+                      TextField(
+                        controller: _titleController,
+                        style: Theme.of(context).textTheme.titleLarge,
+                        decoration: const InputDecoration(
+                          labelText: 'Title (optional)',
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: _tagController,
+                        decoration: const InputDecoration(
+                          labelText: 'Add a tag and press enter (e.g. ocean, childhood, flying)',
+                        ),
+                        onSubmitted: _addTag,
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _tags
+                            .map(
+                              (tag) => InputChip(
+                                label: Text(tag),
+                                onDeleted: () => _removeTag(tag),
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ],
+                  ),
+                ),
+                FrostedCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SectionHeader(
+                        title: 'Capture audio',
+                        subtitle: 'Tap to record a whisper before it fades.',
+                        padding: EdgeInsets.only(bottom: 12),
+                      ),
+                      _RecordingButton(
+                        isRecording: _isRecording,
+                        onTap: _toggleRecording,
+                      ),
+                      if (_audioPath != null) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          'Audio saved at $_audioPath',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      ElevatedButton.icon(
+                        onPressed: _transcribe,
+                        icon: const Icon(Icons.auto_fix_high),
+                        label: const Text('Transcribe audio to text'),
+                      ),
+                    ],
+                  ),
+                ),
+                FrostedCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SectionHeader(
+                        title: 'Dream story',
+                        subtitle: 'Write every fragment you remember. Stay gentle and honest.',
+                        padding: EdgeInsets.only(bottom: 12),
+                      ),
+                      TextField(
+                        controller: _transcriptionController,
+                        maxLines: null,
+                        decoration: const InputDecoration(
+                          labelText: 'Dream story or fragments',
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text('How did it feel?', style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: DreamEmotion.values
+                            .map(
+                              (emotion) => FilterChip(
+                                label: Text(emotion.label),
+                                selected: _selectedEmotions.contains(emotion),
+                                onSelected: (selected) {
+                                  setState(() {
+                                    if (selected) {
+                                      _selectedEmotions.add(emotion);
+                                    } else {
+                                      _selectedEmotions.remove(emotion);
+                                    }
+                                  });
+                                },
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ],
+                  ),
+                ),
+                FrostedCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SectionHeader(
+                        title: 'Fragments & details',
+                        subtitle: 'Jot little anchors so future-you can revisit clearly.',
+                        padding: EdgeInsets.only(bottom: 12),
+                      ),
+                      for (var i = 0; i < _fragments.length; i++) ...[
+                        TextField(
+                          controller: _fragmentControllers[i],
+                          minLines: 1,
+                          maxLines: 4,
+                          decoration: InputDecoration(labelText: _fragments[i].label),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: _addCustomFragment,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add another detail prompt'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                FrostedCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SectionHeader(
+                        title: 'How should I hold this dream?',
+                        subtitle: 'These toggles shape insights and support I offer.',
+                        padding: EdgeInsets.only(bottom: 12),
+                      ),
+                      SwitchListTile(
+                        value: _lucid,
+                        title: const Text('Lucid moment'),
+                        subtitle: const Text('Celebrate awareness inside the dream.'),
+                        onChanged: (value) => setState(() => _lucid = value),
+                      ),
+                      SwitchListTile(
+                        value: _nightmare,
+                        title: const Text('Nightmare / distressing'),
+                        subtitle: const Text('We will offer gentle grounding if needed.'),
+                        onChanged: (value) => setState(() => _nightmare = value),
+                      ),
+                      SwitchListTile(
+                        value: _private,
+                        title: const Text('Keep this private'),
+                        subtitle: const Text('Private entries stay out of insights.'),
+                        onChanged: (value) => setState(() => _private = value),
+                      ),
+                      if (_nightmare) ...[
+                        const SizedBox(height: 12),
+                        ElevatedButton.icon(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const NightmareSupportScreen(),
+                            ),
+                          ),
+                          icon: const Icon(Icons.favorite),
+                          label: const Text('Open soothing tools'),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ),
-        ],
-      ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -264,24 +398,28 @@ class _RecordingButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        height: 80,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 90,
         decoration: BoxDecoration(
-          color: isRecording ? Colors.red.withOpacity(0.4) : Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(40),
-        ),
-        child: Center(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(isRecording ? Icons.stop : Icons.mic, size: 36, color: Colors.white),
-              const SizedBox(width: 12),
-              Text(
-                isRecording ? 'Tap to finish' : 'Tap to record dream',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ],
+          gradient: LinearGradient(
+            colors: isRecording
+                ? const [Color(0xFFED8070), Color(0xFFB53F4E)]
+                : const [Color(0x337B5CD6), Color(0x2232479E)],
           ),
+          borderRadius: BorderRadius.circular(45),
+          border: Border.all(color: Colors.white.withOpacity(0.2)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(isRecording ? Icons.stop : Icons.mic, size: 36, color: Colors.white),
+            const SizedBox(width: 12),
+            Text(
+              isRecording ? 'Tap to finish recording' : 'Tap to record your voice',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ],
         ),
       ),
     );

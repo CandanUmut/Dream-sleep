@@ -26,6 +26,82 @@ class AppState extends ChangeNotifier {
   UserPreferences _preferences = const UserPreferences();
   UserPreferences get preferences => _preferences;
 
+  int get feelingsOnlyCount => _dreams.where((dream) => dream.onlyFeelingsLog).length;
+
+  int get dreamsLoggedThisWeek {
+    if (_dreams.isEmpty) return 0;
+    final now = DateTime.now();
+    final startOfWindow = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 6));
+    return _dreams
+        .where((dream) => dream.createdAt.isAfter(startOfWindow) || dream.createdAt.isAtSameMomentAs(startOfWindow))
+        .length;
+  }
+
+  int get recallStreak {
+    if (_dreams.isEmpty) return 0;
+    final uniqueDates = _dreams
+        .map((dream) => DateTime(dream.createdAt.year, dream.createdAt.month, dream.createdAt.day))
+        .toSet()
+        .toList()
+      ..sort();
+    if (uniqueDates.isEmpty) return 0;
+    var streak = 1;
+    for (var i = uniqueDates.length - 1; i > 0; i--) {
+      final current = uniqueDates[i];
+      final previous = uniqueDates[i - 1];
+      if (current.difference(previous).inDays == 1) {
+        streak += 1;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }
+
+  Map<String, int> get tagCounts {
+    final counts = <String, int>{};
+    for (final dream in analyzableDreams) {
+      for (final tag in dream.tags.map((tag) => tag.trim()).where((tag) => tag.isNotEmpty)) {
+        counts.update(tag, (value) => value + 1, ifAbsent: () => 1);
+      }
+    }
+    return counts;
+  }
+
+  Map<RestfulnessLevel, int> get restfulnessSummary {
+    final counts = <RestfulnessLevel, int>{};
+    for (final reflection in _reflections) {
+      counts.update(reflection.restfulness, (value) => value + 1, ifAbsent: () => 1);
+    }
+    return counts;
+  }
+
+  Map<NightWakeFrequency, int> get nightWakeSummary {
+    final counts = <NightWakeFrequency, int>{};
+    for (final reflection in _reflections) {
+      counts.update(reflection.wakeFrequency, (value) => value + 1, ifAbsent: () => 1);
+    }
+    return counts;
+  }
+
+  double get nightmareRatio => _dreams.isEmpty ? 0 : nightmareCount / _dreams.length;
+
+  double get positiveEmotionRatio {
+    if (analyzableDreams.isEmpty) return 0;
+    final calmingEmotions = {
+      DreamEmotion.calm,
+      DreamEmotion.joyful,
+      DreamEmotion.relieved,
+    };
+    final totalEmotions = analyzableDreams.fold<int>(0, (count, dream) => count + dream.emotions.length);
+    if (totalEmotions == 0) return 0;
+    final positive = analyzableDreams.fold<int>(0, (count, dream) {
+      final matches = dream.emotions.where(calmingEmotions.contains).length;
+      return count + matches;
+    });
+    return positive / totalEmotions;
+  }
+
   Future<void> load() async {
     if (_isInitialized) return;
     final dreamMaps = await _storage.readCollection(_dreamsKey);
