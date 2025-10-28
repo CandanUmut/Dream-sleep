@@ -1,0 +1,25 @@
+name: dream_sleep
+description: A gentle sleep and dream companion built with Flutter.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.1.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.0.5
+  path_provider: ^2.1.1
+  uuid: ^4.3.3
+  intl: ^0.18.1
+  flutter_sound: ^9.2.13
+  permission_handler: ^11.1.0
+  speech_to_text: ^6.3.0
+  collection: ^1.18.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/audio/
+    - assets/images/
