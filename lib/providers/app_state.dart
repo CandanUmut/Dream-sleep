@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/dream_entry.dart';
 import '../models/morning_reflection.dart';
+import '../models/night_note.dart';
 import '../models/user_preferences.dart';
 import '../services/storage/local_storage_service.dart';
 
@@ -13,6 +14,7 @@ class AppState extends ChangeNotifier {
   static const _dreamsKey = 'dreams';
   static const _reflectionsKey = 'reflections';
   static const _preferencesKey = 'preferences';
+  static const _nightNotesKey = 'night_notes';
 
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
@@ -25,6 +27,20 @@ class AppState extends ChangeNotifier {
 
   UserPreferences _preferences = const UserPreferences();
   UserPreferences get preferences => _preferences;
+
+  List<NightNote> _nightNotes = [];
+  List<NightNote> get nightNotes => List.unmodifiable(_nightNotes);
+
+  NightNote? get latestNightNote => latestNightNoteFor('winddown');
+
+  NightNote? latestNightNoteFor(String category) {
+    for (final note in _nightNotes) {
+      if (note.category == category) {
+        return note;
+      }
+    }
+    return null;
+  }
 
   int get feelingsOnlyCount => _dreams.where((dream) => dream.onlyFeelingsLog).length;
 
@@ -117,6 +133,10 @@ class AppState extends ChangeNotifier {
       _preferences = UserPreferences.fromJson(preferenceMaps.first);
     }
 
+    final nightNoteMaps = await _storage.readCollection(_nightNotesKey);
+    _nightNotes = nightNoteMaps.map(NightNote.fromJson).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
     _isInitialized = true;
     notifyListeners();
   }
@@ -166,6 +186,16 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> addNightNote(NightNote note) async {
+    _nightNotes.add(note);
+    _nightNotes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    await _storage.writeCollection(
+      _nightNotesKey,
+      _nightNotes.map((note) => note.toJson()).toList(),
+    );
+    notifyListeners();
+  }
+
   List<DreamEntry> get analyzableDreams =>
       _dreams.where((dream) => dream.privatePreference == DreamPrivacyPreference.allowInsights).toList();
 
@@ -202,9 +232,11 @@ class AppState extends ChangeNotifier {
     _dreams = [];
     _reflections = [];
     _preferences = const UserPreferences();
+    _nightNotes = [];
     await _storage.clear(_dreamsKey);
     await _storage.clear(_reflectionsKey);
     await _storage.clear(_preferencesKey);
+    await _storage.clear(_nightNotesKey);
     notifyListeners();
   }
 }

@@ -43,6 +43,10 @@ class AudioRecorderService {
     return path;
   }
 
+  bool get isRecording => _recorder.isRecording;
+
+  String? get currentPath => _currentPath;
+
   Future<void> dispose() async {
     await _recorder.closeRecorder();
   }

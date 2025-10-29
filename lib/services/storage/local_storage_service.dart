@@ -1,44 +1,51 @@
 import 'dart:convert';
-import 'dart:io';
 
-import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalStorageService {
   LocalStorageService._();
 
   static final LocalStorageService instance = LocalStorageService._();
 
-  Future<Directory> get _appDirectory async {
-    final directory = await getApplicationDocumentsDirectory();
-    return directory;
-  }
+  SharedPreferences? _preferences;
 
-  Future<File> _resolveFile(String name) async {
-    final directory = await _appDirectory;
-    final file = File('${directory.path}/$name.json');
-    if (!await file.exists()) {
-      await file.create(recursive: true);
-      await file.writeAsString(jsonEncode({'items': []}));
-    }
-    return file;
-  }
+  Future<SharedPreferences> get _prefs async =>
+      _preferences ??= await SharedPreferences.getInstance();
 
   Future<List<Map<String, dynamic>>> readCollection(String name) async {
-    final file = await _resolveFile(name);
-    final contents = await file.readAsString();
-    final jsonMap = jsonDecode(contents) as Map<String, dynamic>;
-    final list = jsonMap['items'] as List<dynamic>? ?? [];
-    return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    final prefs = await _prefs;
+    final raw = prefs.getString(name);
+    if (raw == null || raw.isEmpty) {
+      return [];
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return decoded
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      }
+      if (decoded is Map && decoded['items'] is List) {
+        return (decoded['items'] as List)
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      }
+    } catch (_) {
+      // If decoding fails we reset the value to avoid repeated crashes.
+      await prefs.remove(name);
+    }
+    return [];
   }
 
-  Future<void> writeCollection(String name, List<Map<String, dynamic>> data) async {
-    final file = await _resolveFile(name);
-    final payload = jsonEncode({'items': data});
-    await file.writeAsString(payload);
+  Future<void> writeCollection(
+      String name, List<Map<String, dynamic>> data) async {
+    final prefs = await _prefs;
+    final payload = jsonEncode(data);
+    await prefs.setString(name, payload);
   }
 
   Future<void> clear(String name) async {
-    final file = await _resolveFile(name);
-    await file.writeAsString(jsonEncode({'items': []}));
+    final prefs = await _prefs;
+    await prefs.remove(name);
   }
 }

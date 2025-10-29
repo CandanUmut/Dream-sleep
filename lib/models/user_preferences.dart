@@ -14,6 +14,7 @@ class UserPreferences {
     this.lensPreference = ComfortLensPreference.both,
     this.morningPromptEnabled = true,
     this.nightWindDownEnabled = true,
+    this.realityCheckRemindersEnabled = false,
     this.hasCompletedOnboarding = false,
   });
 
@@ -21,6 +22,7 @@ class UserPreferences {
   final ComfortLensPreference lensPreference;
   final bool morningPromptEnabled;
   final bool nightWindDownEnabled;
+  final bool realityCheckRemindersEnabled;
   final bool hasCompletedOnboarding;
 
   UserPreferences copyWith({
@@ -28,6 +30,7 @@ class UserPreferences {
     ComfortLensPreference? lensPreference,
     bool? morningPromptEnabled,
     bool? nightWindDownEnabled,
+    bool? realityCheckRemindersEnabled,
     bool? hasCompletedOnboarding,
   }) {
     return UserPreferences(
@@ -35,6 +38,8 @@ class UserPreferences {
       lensPreference: lensPreference ?? this.lensPreference,
       morningPromptEnabled: morningPromptEnabled ?? this.morningPromptEnabled,
       nightWindDownEnabled: nightWindDownEnabled ?? this.nightWindDownEnabled,
+      realityCheckRemindersEnabled:
+          realityCheckRemindersEnabled ?? this.realityCheckRemindersEnabled,
       hasCompletedOnboarding: hasCompletedOnboarding ?? this.hasCompletedOnboarding,
     );
   }
@@ -44,6 +49,7 @@ class UserPreferences {
         'lensPreference': lensPreference.name,
         'morningPromptEnabled': morningPromptEnabled,
         'nightWindDownEnabled': nightWindDownEnabled,
+        'realityCheckRemindersEnabled': realityCheckRemindersEnabled,
         'hasCompletedOnboarding': hasCompletedOnboarding,
       };
 
@@ -60,6 +66,7 @@ class UserPreferences {
           .firstWhere((element) => element.name == json['lensPreference'], orElse: () => ComfortLensPreference.both),
       morningPromptEnabled: json['morningPromptEnabled'] as bool? ?? true,
       nightWindDownEnabled: json['nightWindDownEnabled'] as bool? ?? true,
+      realityCheckRemindersEnabled: json['realityCheckRemindersEnabled'] as bool? ?? false,
       hasCompletedOnboarding: json['hasCompletedOnboarding'] as bool? ?? false,
     );
   }

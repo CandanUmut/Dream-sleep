@@ -9,6 +9,8 @@ import '../../widgets/section_header.dart';
 import '../home/home_screen.dart';
 
 class OnboardingFlow extends StatefulWidget {
+  static const routeName = '/onboarding';
+
   const OnboardingFlow({super.key});
 
   @override
@@ -21,6 +23,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   ComfortLensPreference _lensPreference = ComfortLensPreference.both;
   bool _morningPromptEnabled = true;
   bool _nightWindDownEnabled = true;
+  bool _initializedFromPrefs = false;
 
   static const _pageCount = 6;
 
@@ -37,19 +40,30 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     setState(() => _index -= 1);
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initializedFromPrefs) return;
+    final prefs = context.read<AppState>().preferences;
+    _goals = {...prefs.goals};
+    _lensPreference = prefs.lensPreference;
+    _morningPromptEnabled = prefs.morningPromptEnabled;
+    _nightWindDownEnabled = prefs.nightWindDownEnabled;
+    _initializedFromPrefs = true;
+  }
+
   Future<void> _completeOnboarding() async {
-    final prefs = UserPreferences(
-      goals: _goals,
+    final appState = context.read<AppState>();
+    final prefs = appState.preferences.copyWith(
+      goals: {..._goals},
       lensPreference: _lensPreference,
       morningPromptEnabled: _morningPromptEnabled,
       nightWindDownEnabled: _nightWindDownEnabled,
       hasCompletedOnboarding: true,
     );
-    await context.read<AppState>().updatePreferences(prefs);
+    await appState.updatePreferences(prefs);
     if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
-    );
+    Navigator.of(context).pushReplacementNamed(HomeScreen.routeName);
   }
 
   @override
