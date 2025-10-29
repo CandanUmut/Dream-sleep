@@ -16,6 +16,7 @@ import '../insights/insights_screen.dart';
 import '../journal/dream_entry_screen.dart';
 import '../journal/feelings_only_dialog.dart';
 import '../journal/night_capture_screen.dart';
+import '../journal/journal_overview_screen.dart';
 import '../settings/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -240,18 +241,30 @@ class _HomeScreenState extends State<HomeScreen> {
                   subtitle: dreams.isEmpty
                       ? 'No entries for this filter yet. Capture tonight and the story appears here.'
                       : 'Tap a dream to revisit and edit the details.',
-                  action: ToggleButtons(
-                    onPressed: (index) {
-                      setState(() => _filter = _DreamFilter.values[index]);
-                    },
-                    isSelected: _DreamFilter.values.map((f) => _filter == f).toList(),
-                    borderRadius: BorderRadius.circular(18),
+                  action: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      for (final filter in _DreamFilter.values)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Text(filterLabels[filter]!),
+                      ToggleButtons(
+                        onPressed: (index) {
+                          setState(() => _filter = _DreamFilter.values[index]);
+                        },
+                        isSelected: _DreamFilter.values.map((f) => _filter == f).toList(),
+                        borderRadius: BorderRadius.circular(18),
+                        children: [
+                          for (final filter in _DreamFilter.values)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: Text(filterLabels[filter]!),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pushNamed(
+                          JournalOverviewScreen.routeName,
                         ),
+                        child: const Text('View journal'),
+                      ),
                     ],
                   ),
                 ),

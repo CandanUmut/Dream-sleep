@@ -9,11 +9,15 @@ import 'screens/flows/wind_down_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/insights/insights_screen.dart';
 import 'screens/journal/dream_entry_screen.dart';
+import 'screens/journal/journal_overview_screen.dart';
 import 'screens/onboarding/onboarding_flow.dart';
 import 'screens/settings/settings_screen.dart';
 import 'theme.dart';
+import 'services/storage/local_storage_service.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await LocalStorageService.instance.warmUp();
   runApp(const DreamSleepApp());
 }
 
@@ -51,6 +55,7 @@ class DreamSleepApp extends StatelessWidget {
               LucidLearningScreen.routeName: (_) => const LucidLearningScreen(),
               NightmareSupportScreen.routeName: (_) => const NightmareSupportScreen(),
               WindDownScreen.routeName: (_) => const WindDownScreen(),
+              JournalOverviewScreen.routeName: (_) => const JournalOverviewScreen(),
               SettingsScreen.routeName: (_) => const SettingsScreen(),
             },
             onGenerateRoute: (settings) {

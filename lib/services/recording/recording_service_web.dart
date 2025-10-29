@@ -24,6 +24,7 @@ class WebRecordingService implements RecordingService {
   dynamic _recognition;
   Completer<String?>? _resultCompleter;
   String? _latestTranscript;
+  html.MediaStream? _activeStream;
 
   @override
   bool get isSupported => _isSupported;
@@ -37,6 +38,10 @@ class WebRecordingService implements RecordingService {
   @override
   Future<void> startRecording() async {
     if (!_isSupported || _recognition == null) {
+      return;
+    }
+    final stream = await _ensureMicrophone();
+    if (stream == null) {
       return;
     }
     _resultCompleter = Completer<String?>();
@@ -78,8 +83,20 @@ class WebRecordingService implements RecordingService {
       _recognition,
       'onerror',
       allowInterop((dynamic event) {
+        _stopStream();
         if (!(_resultCompleter?.isCompleted ?? true)) {
           _resultCompleter?.completeError(event);
+        }
+      }),
+    );
+
+    js_util.setProperty(
+      _recognition,
+      'onend',
+      allowInterop((dynamic _) {
+        _stopStream();
+        if (!(_resultCompleter?.isCompleted ?? true)) {
+          _resultCompleter?.complete(_latestTranscript?.trim());
         }
       }),
     );
@@ -107,6 +124,7 @@ class WebRecordingService implements RecordingService {
       return _latestTranscript?.trim();
     } finally {
       _resultCompleter = null;
+      _stopStream();
     }
   }
 
@@ -117,5 +135,33 @@ class WebRecordingService implements RecordingService {
         js_util.callMethod(_recognition, 'abort', []);
       } catch (_) {}
     }
+    _stopStream();
+  }
+
+  Future<html.MediaStream?> _ensureMicrophone() async {
+    if (_activeStream != null) {
+      return _activeStream;
+    }
+    final mediaDevices = html.window.navigator.mediaDevices;
+    if (mediaDevices == null) {
+      return null;
+    }
+    try {
+      final stream = await mediaDevices.getUserMedia({'audio': true});
+      _activeStream = stream;
+      return stream;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _stopStream() {
+    if (_activeStream == null) {
+      return;
+    }
+    for (final track in _activeStream!.getTracks()) {
+      track.stop();
+    }
+    _activeStream = null;
   }
 }

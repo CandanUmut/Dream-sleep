@@ -138,33 +138,20 @@ class _LucidLearningScreenState extends State<LucidLearningScreen> {
                     ],
                   ),
                 ),
-                ExpansionPanelList(
-                  elevation: 0,
-                  expansionCallback: (index, isExpanded) {
-                    setState(() {
-                      if (isExpanded) {
-                        _expanded.remove(index);
-                      } else {
-                        _expanded.add(index);
-                      }
-                    });
-                  },
-                  children: [
-                    for (var i = 0; i < lessons.length; i++)
-                      ExpansionPanel(
-                        canTapOnHeader: true,
-                        isExpanded: _expanded.contains(i),
-                        headerBuilder: (context, _) => ListTile(
-                          title: Text(lessons[i].title),
-                          subtitle: Text(lessons[i].practice),
-                        ),
-                        body: Padding(
-                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                          child: Text(lessons[i].body),
-                        ),
-                      ),
-                  ],
-                ),
+                for (var i = 0; i < lessons.length; i++)
+                  _LucidLessonCard(
+                    lesson: lessons[i],
+                    expanded: _expanded.contains(i),
+                    onTap: () {
+                      setState(() {
+                        if (_expanded.contains(i)) {
+                          _expanded.remove(i);
+                        } else {
+                          _expanded.add(i);
+                        }
+                      });
+                    },
+                  ),
                 FrostedCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -203,4 +190,76 @@ class _LucidLesson {
   final String title;
   final String body;
   final String practice;
+}
+
+class _LucidLessonCard extends StatelessWidget {
+  const _LucidLessonCard({
+    required this.lesson,
+    required this.expanded,
+    required this.onTap,
+  });
+
+  final _LucidLesson lesson;
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return FrostedCard(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            lesson.title,
+                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 6),
+                          Chip(
+                            avatar: const Icon(Icons.self_improvement, size: 16),
+                            label: Text(lesson.practice),
+                          ),
+                        ],
+                      ),
+                    ),
+                    AnimatedRotation(
+                      turns: expanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 200),
+                      child: const Icon(Icons.expand_more),
+                    ),
+                  ],
+                ),
+                AnimatedCrossFade(
+                  duration: const Duration(milliseconds: 250),
+                  crossFadeState:
+                      expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                  firstChild: const SizedBox.shrink(),
+                  secondChild: Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Text(
+                      lesson.body,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
