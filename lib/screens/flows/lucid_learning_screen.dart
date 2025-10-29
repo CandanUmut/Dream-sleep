@@ -9,6 +9,8 @@ import '../../widgets/section_header.dart';
 import '../../widgets/stat_chip.dart';
 
 class LucidLearningScreen extends StatefulWidget {
+  static const routeName = '/lucid';
+
   const LucidLearningScreen({super.key});
 
   @override
@@ -21,33 +23,33 @@ class _LucidLearningScreenState extends State<LucidLearningScreen> {
   List<_LucidLesson> _lessonsFor(UserPreferences prefs) {
     final lessons = <_LucidLesson>[
       const _LucidLesson(
-        title: 'Level 1 · Foundations',
+        title: 'Step 1 · Remember your dreams',
         body:
-            'Keep journaling right when you wake. Whisper the intention “Tonight I will remember my dreams.” Stay still for a moment on waking and replay what you recall.',
-        practice: 'Morning journaling · Evening intention',
+            'When you wake, stay still for 1–2 minutes and replay the dream. Write even a sentence. Each small note teaches your brain that dream memories matter.',
+        practice: 'Morning journaling · Gentle recall',
       ),
       const _LucidLesson(
-        title: 'Level 2 · Daytime awareness',
+        title: 'Step 2 · Reality checks',
         body:
-            'Pause gently during the day. Count your fingers. Read a sentence twice. Ask “Am I dreaming?” Each check plants seeds for awareness at night.',
+            'Pause during the day and do a quick test: count your fingers, reread a sentence, pinch your nose and try to breathe through it. Ask softly, “Am I dreaming?” Repetition plants the habit you’ll need inside the dream.',
         practice: 'Reality checks · Mindful pauses',
       ),
       const _LucidLesson(
-        title: 'Level 3 · MILD intention',
+        title: 'Step 3 · MILD intention',
         body:
-            'As you drift to sleep repeat softly: “Next time I’m dreaming, I will remember I’m dreaming.” Imagine staying calm when the dream becomes clear.',
+            'If you wake in the night, recall the dream and whisper: “Next time I’m dreaming, I will remember I’m dreaming.” Visualise yourself back in that dream, noticing it’s a dream, then drift off with that intention.',
         practice: 'Night affirmations · Visualization',
       ),
       const _LucidLesson(
-        title: 'Level 4 · Wake-Back-To-Bed',
+        title: 'Step 4 · Wake-Back-To-Bed',
         body:
-            'Only after consistent sleep: rest ~5 hours, wake for 10 minutes to set intention, then return to bed. If you feel exhausted, stop immediately. Your health matters first.',
+            'After at least 5 hours of sleep, wake for 10 minutes, set your lucid intention, then return to bed. If you feel depleted the next day, pause this technique—your rest matters more than any lucid win.',
         practice: 'Gentle WBTB · Stretch and sip water',
       ),
       const _LucidLesson(
-        title: 'Level 5 · Stabilize gently',
+        title: 'Step 5 · In-dream stabilization',
         body:
-            'Inside a lucid dream, rub your hands, look at the ground, spin slowly. Set a calm goal like “I will breathe and feel peace for five seconds.”',
+            'When lucidity clicks, breathe slowly. Rub your dream-hands together, look around, touch the ground. Give yourself a gentle goal like “I will stay calm and observe for five breaths.”',
         practice: 'Grounding senses · Small goals',
       ),
     ];
@@ -112,6 +114,26 @@ class _LucidLearningScreenState extends State<LucidLearningScreen> {
                             icon: Icons.self_improvement,
                           ),
                         ],
+                      ),
+                    ],
+                  ),
+                ),
+                FrostedCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SwitchListTile.adaptive(
+                        value: prefs.realityCheckRemindersEnabled,
+                        activeColor: Theme.of(context).colorScheme.primary,
+                        title: const Text('Reality check reminders'),
+                        subtitle: const Text('Send 1–2 gentle prompts in the daytime. (Notifications stay on this device.)'),
+                        onChanged: (value) => context.read<AppState>().updatePreferences(
+                              prefs.copyWith(realityCheckRemindersEnabled: value),
+                            ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.only(left: 16, right: 16, bottom: 8),
+                        child: Text('If reminders feel intrusive, switch them off anytime. Your rest comes first.'),
                       ),
                     ],
                   ),
