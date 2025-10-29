@@ -3,14 +3,15 @@ import 'package:provider/provider.dart';
 
 import '../../models/dream_entry.dart';
 import '../../providers/app_state.dart';
-import '../../services/audio/audio_recorder_service.dart';
-import '../../services/transcription/local_transcription_service.dart';
+import '../../services/recording/recording_service.dart';
 import '../../widgets/dream_background.dart';
 import '../../widgets/frosted_card.dart';
 import '../../widgets/section_header.dart';
 import '../flows/nightmare_support_screen.dart';
 
 class DreamEntryScreen extends StatefulWidget {
+  static const routeName = '/journal/new';
+
   const DreamEntryScreen({super.key, this.existingDream});
 
   final DreamEntry? existingDream;
@@ -19,7 +20,10 @@ class DreamEntryScreen extends StatefulWidget {
   State<DreamEntryScreen> createState() => _DreamEntryScreenState();
 }
 
+enum _CaptureMode { voice, text }
+
 class _DreamEntryScreenState extends State<DreamEntryScreen> {
+  late final RecordingService _recordingService;
   final _titleController = TextEditingController();
   final _transcriptionController = TextEditingController();
   final _tagController = TextEditingController();
@@ -32,15 +36,14 @@ class _DreamEntryScreenState extends State<DreamEntryScreen> {
   bool _private = true;
   bool _isRecording = false;
   String? _audioPath;
-  late AudioRecorderService _recorderService;
-  late LocalTranscriptionService _transcriptionService;
+  bool _voiceSupported = false;
+  _CaptureMode _mode = _CaptureMode.text;
   bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
-    _recorderService = AudioRecorderService();
-    _transcriptionService = LocalTranscriptionService();
+    _recordingService = createRecordingService();
     _fragments = [
       DreamFragmentField(label: 'People / Characters'),
       DreamFragmentField(label: 'Places'),
@@ -65,12 +68,17 @@ class _DreamEntryScreenState extends State<DreamEntryScreen> {
       _tags = List<String>.from(dream.tags);
     }
     _fragmentControllers = _fragments.map((fragment) => TextEditingController(text: fragment.value)).toList();
-    _initializeServices();
+    _initializeRecording();
   }
 
-  Future<void> _initializeServices() async {
-    await _recorderService.init();
-    await _transcriptionService.init();
+  Future<void> _initializeRecording() async {
+    await _recordingService.initialize();
+    if (!mounted) return;
+    final supported = _recordingService.isSupported;
+    setState(() {
+      _voiceSupported = supported;
+      _mode = supported ? _CaptureMode.voice : _CaptureMode.text;
+    });
   }
 
   @override
@@ -81,39 +89,44 @@ class _DreamEntryScreenState extends State<DreamEntryScreen> {
     _titleController.dispose();
     _transcriptionController.dispose();
     _tagController.dispose();
-    _recorderService.dispose();
-    _transcriptionService.dispose();
+    _recordingService.dispose();
     super.dispose();
   }
 
   Future<void> _toggleRecording() async {
     if (_isRecording) {
-      final path = await _recorderService.stopRecording();
+      final transcript = await _recordingService.stopRecordingAndTranscribe();
+      final path = _recordingService.latestRecordingPath;
+      if (!mounted) return;
       setState(() {
         _isRecording = false;
-        _audioPath = path;
+        if (path != null) {
+          _audioPath = path;
+        }
       });
-    } else {
-      final path = await _recorderService.startRecording();
-      if (path == null) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Microphone permission is needed to record.')),
-        );
-        return;
+      if (transcript != null && transcript.isNotEmpty && mounted) {
+        _transcriptionController.text = transcript;
       }
-      setState(() {
-        _isRecording = true;
-        _audioPath = path;
-      });
+      return;
     }
-  }
 
-  Future<void> _transcribe() async {
-    final text = await _transcriptionService.transcribeOnce();
-    if (text.isEmpty) return;
+    await _recordingService.startRecording();
+    if (!mounted) return;
+    if (!_recordingService.isSupported) {
+      setState(() {
+        _voiceSupported = false;
+        _mode = _CaptureMode.text;
+        _isRecording = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Voice capture is unavailable. You can type instead 💜'),
+        ),
+      );
+      return;
+    }
     setState(() {
-      _transcriptionController.text = text;
+      _isRecording = true;
     });
   }
 
@@ -147,6 +160,7 @@ class _DreamEntryScreenState extends State<DreamEntryScreen> {
     for (var i = 0; i < _fragments.length; i++) {
       fragments.add(_fragments[i].copyWith(value: _fragmentControllers[i].text.trim()));
     }
+    final resolvedAudioPath = _recordingService.latestRecordingPath ?? _audioPath;
     final entry = (widget.existingDream ?? DreamEntry(createdAt: DateTime.now())).copyWith(
       title: _titleController.text.trim(),
       transcription: _transcriptionController.text.trim(),
@@ -155,7 +169,7 @@ class _DreamEntryScreenState extends State<DreamEntryScreen> {
       lucid: _lucid,
       nightmare: _nightmare,
       privatePreference: _private ? DreamPrivacyPreference.private : DreamPrivacyPreference.allowInsights,
-      audioPath: _audioPath,
+      audioPath: resolvedAudioPath,
       tags: _tags,
     );
     await context.read<AppState>().upsertDream(entry);
@@ -241,30 +255,115 @@ class _DreamEntryScreenState extends State<DreamEntryScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SectionHeader(
-                        title: 'Capture audio',
-                        subtitle: 'Tap to record a whisper before it fades.',
+                        title: 'Choose your capture style',
+                        subtitle: 'Switch between voice and typing whenever you need.',
                         padding: EdgeInsets.only(bottom: 12),
                       ),
-                      _RecordingButton(
-                        isRecording: _isRecording,
-                        onTap: _toggleRecording,
+                      ToggleButtons(
+                        borderRadius: BorderRadius.circular(18),
+                        isSelected: [
+                          _mode == _CaptureMode.voice,
+                          _mode == _CaptureMode.text,
+                        ],
+                        onPressed: (index) {
+                          if (index == 0 && !_voiceSupported) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Voice capture isn’t supported here. You can type instead 💜'),
+                              ),
+                            );
+                            return;
+                          }
+                          if (_isRecording) {
+                            _toggleRecording();
+                          }
+                          setState(() {
+                            _mode = _CaptureMode.values[index];
+                          });
+                        },
+                        children: const [
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            child: Text('🎙 Voice capture'),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            child: Text('⌨️ Type manually'),
+                          ),
+                        ],
                       ),
-                      if (_audioPath != null) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          'Audio saved at $_audioPath',
-                          style: Theme.of(context).textTheme.bodySmall,
+                      if (!_voiceSupported)
+                        Container(
+                          margin: const EdgeInsets.only(top: 12),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: const [
+                              Icon(Icons.info_outline, size: 18, color: Colors.white70),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Voice capture isn’t supported on this device or browser. Your dreams can always be typed and saved safely.',
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
-                      const SizedBox(height: 12),
-                      ElevatedButton.icon(
-                        onPressed: _transcribe,
-                        icon: const Icon(Icons.auto_fix_high),
-                        label: const Text('Transcribe audio to text'),
-                      ),
                     ],
                   ),
                 ),
+                if (_mode == _CaptureMode.voice)
+                  FrostedCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SectionHeader(
+                          title: 'Voice capture',
+                          subtitle: 'Tap to record before the details fade. I’ll drop the words into your story.',
+                          padding: EdgeInsets.only(bottom: 12),
+                        ),
+                        _RecordingButton(
+                          isRecording: _isRecording,
+                          onTap: _voiceSupported ? _toggleRecording : null,
+                        ),
+                        if (_audioPath != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            'Audio saved locally at $_audioPath',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        if (_isRecording)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 12),
+                            child: Text('I’m listening. When you tap stop, the transcript appears below for editing.'),
+                          )
+                        else
+                          const Padding(
+                            padding: EdgeInsets.only(top: 12),
+                            child: Text('Speak naturally. You can tidy the text once it appears in the story field.'),
+                          ),
+                      ],
+                    ),
+                  )
+                else
+                  FrostedCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        SectionHeader(
+                          title: 'Manual entry',
+                          subtitle: 'Type your dream in the story field below. Fragments are enough.',
+                          padding: EdgeInsets.only(bottom: 12),
+                        ),
+                        Text('Let your thoughts spill gently. Even short notes keep the memory alive.'),
+                      ],
+                    ),
+                  ),
                 FrostedCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -367,10 +466,8 @@ class _DreamEntryScreenState extends State<DreamEntryScreen> {
                       if (_nightmare) ...[
                         const SizedBox(height: 12),
                         ElevatedButton.icon(
-                          onPressed: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const NightmareSupportScreen(),
-                            ),
+                          onPressed: () => Navigator.of(context).pushNamed(
+                            NightmareSupportScreen.routeName,
                           ),
                           icon: const Icon(Icons.favorite),
                           label: const Text('Open soothing tools'),
@@ -389,13 +486,14 @@ class _DreamEntryScreenState extends State<DreamEntryScreen> {
 }
 
 class _RecordingButton extends StatelessWidget {
-  const _RecordingButton({required this.isRecording, required this.onTap});
+  const _RecordingButton({required this.isRecording, this.onTap});
 
   final bool isRecording;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onTap != null;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -403,9 +501,11 @@ class _RecordingButton extends StatelessWidget {
         height: 90,
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: isRecording
-                ? const [Color(0xFFED8070), Color(0xFFB53F4E)]
-                : const [Color(0x337B5CD6), Color(0x2232479E)],
+            colors: !enabled
+                ? const [Color(0x2232479E), Color(0x11284784)]
+                : isRecording
+                    ? const [Color(0xFFED8070), Color(0xFFB53F4E)]
+                    : const [Color(0x337B5CD6), Color(0x2232479E)],
           ),
           borderRadius: BorderRadius.circular(45),
           border: Border.all(color: Colors.white.withOpacity(0.2)),
@@ -413,11 +513,20 @@ class _RecordingButton extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(isRecording ? Icons.stop : Icons.mic, size: 36, color: Colors.white),
+            Icon(
+              isRecording ? Icons.stop : Icons.mic,
+              size: 36,
+              color: enabled ? Colors.white : Colors.white54,
+            ),
             const SizedBox(width: 12),
             Text(
-              isRecording ? 'Tap to finish recording' : 'Tap to record your voice',
-              style: Theme.of(context).textTheme.titleMedium,
+              !enabled
+                  ? 'Voice capture not available here'
+                  : (isRecording ? 'Tap to finish recording' : 'Tap to record your voice'),
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(color: enabled ? Colors.white : Colors.white70),
             ),
           ],
         ),

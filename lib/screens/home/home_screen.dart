@@ -10,6 +10,7 @@ import '../../widgets/section_header.dart';
 import '../../widgets/stat_chip.dart';
 import '../flows/lucid_learning_screen.dart';
 import '../flows/morning_recall_flow.dart';
+import '../flows/nightmare_support_screen.dart';
 import '../flows/wind_down_screen.dart';
 import '../insights/insights_screen.dart';
 import '../journal/dream_entry_screen.dart';
@@ -18,6 +19,8 @@ import '../journal/night_capture_screen.dart';
 import '../settings/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
+  static const routeName = '/home';
+
   const HomeScreen({super.key});
 
   @override
@@ -81,8 +84,8 @@ class _HomeScreenState extends State<HomeScreen> {
             actions: [
               IconButton(
                 icon: const Icon(Icons.settings_rounded),
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                onPressed: () => Navigator.of(context).pushNamed(
+                  SettingsScreen.routeName,
                 ),
               ),
             ],
@@ -147,8 +150,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ElevatedButton.icon(
                         icon: const Icon(Icons.mic_none),
                         label: const Text('Record a full dream'),
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const DreamEntryScreen()),
+                        onPressed: () => Navigator.of(context).pushNamed(
+                          DreamEntryScreen.routeName,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -194,8 +197,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         title: const Text('Begin wind-down'),
                         subtitle: const Text('Settle your body and heart in under two minutes.'),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const WindDownScreen()),
+                        onTap: () => Navigator.of(context).pushNamed(
+                          WindDownScreen.routeName,
                         ),
                       ),
                       const Divider(height: 24),
@@ -204,8 +207,18 @@ class _HomeScreenState extends State<HomeScreen> {
                         title: const Text('Lucid learning path'),
                         subtitle: const Text('Grow awareness gently with levelled guidance.'),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const LucidLearningScreen()),
+                        onTap: () => Navigator.of(context).pushNamed(
+                          LucidLearningScreen.routeName,
+                        ),
+                      ),
+                      const Divider(height: 24),
+                      ListTile(
+                        leading: const Icon(Icons.shield_moon, color: Colors.white70),
+                        title: const Text('Nightmare soothe'),
+                        subtitle: const Text('Ground, rewrite, and feel safe before sleep.'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () => Navigator.of(context).pushNamed(
+                          NightmareSupportScreen.routeName,
                         ),
                       ),
                       const Divider(height: 24),
@@ -214,8 +227,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         title: const Text('Dream insights'),
                         subtitle: const Text('Find patterns and people that visit often.'),
                         trailing: const Icon(Icons.chevron_right),
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const InsightsScreen()),
+                        onTap: () => Navigator.of(context).pushNamed(
+                          InsightsScreen.routeName,
                         ),
                       ),
                     ],

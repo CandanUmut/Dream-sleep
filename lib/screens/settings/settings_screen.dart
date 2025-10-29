@@ -9,6 +9,8 @@ import '../../widgets/section_header.dart';
 import '../flows/morning_recall_flow.dart';
 
 class SettingsScreen extends StatelessWidget {
+  static const routeName = '/settings';
+
   const SettingsScreen({super.key});
 
   @override
@@ -59,6 +61,15 @@ class SettingsScreen extends StatelessWidget {
                         subtitle: const Text('Prompts you to slow down, dim lights, and set intention.'),
                         onChanged: (value) => appState.updatePreferences(
                           prefs.copyWith(nightWindDownEnabled: value),
+                        ),
+                      ),
+                      SwitchListTile.adaptive(
+                        value: prefs.realityCheckRemindersEnabled,
+                        activeColor: Theme.of(context).colorScheme.primary,
+                        title: const Text('Daytime reality check nudges'),
+                        subtitle: const Text('Sends 1–2 gentle prompts while you’re awake. Turn off anytime.'),
+                        onChanged: (value) => appState.updatePreferences(
+                          prefs.copyWith(realityCheckRemindersEnabled: value),
                         ),
                       ),
                     ],
