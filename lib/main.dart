@@ -37,15 +37,13 @@ class DreamSleepApp extends StatelessWidget {
             );
           }
 
-          final initialRoute = appState.preferences.hasCompletedOnboarding
-              ? HomeScreen.routeName
-              : OnboardingFlow.routeName;
-
           return MaterialApp(
             title: 'Dream Sleep',
             theme: DreamSleepTheme.dark,
             debugShowCheckedModeBanner: false,
-            initialRoute: initialRoute,
+            home: appState.preferences.hasCompletedOnboarding
+                ? const HomeScreen()
+                : const OnboardingFlow(),
             routes: {
               HomeScreen.routeName: (_) => const HomeScreen(),
               OnboardingFlow.routeName: (_) => const OnboardingFlow(),
