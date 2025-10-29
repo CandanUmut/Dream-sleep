@@ -12,6 +12,10 @@ class LocalStorageService {
   Future<SharedPreferences> get _prefs async =>
       _preferences ??= await SharedPreferences.getInstance();
 
+  Future<void> warmUp() async {
+    await _prefs;
+  }
+
   Future<List<Map<String, dynamic>>> readCollection(String name) async {
     final prefs = await _prefs;
     final raw = prefs.getString(name);
@@ -41,6 +45,41 @@ class LocalStorageService {
       String name, List<Map<String, dynamic>> data) async {
     final prefs = await _prefs;
     final payload = jsonEncode(data);
+    await prefs.setString(name, payload);
+  }
+
+  Future<Map<String, dynamic>?> readSingleton(String name) async {
+    final prefs = await _prefs;
+    final raw = prefs.getString(name);
+    if (raw == null || raw.isEmpty) {
+      return null;
+    }
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) {
+        return Map<String, dynamic>.from(decoded);
+      }
+      if (decoded is Map) {
+        return Map<String, dynamic>.from(decoded.cast<String, dynamic>());
+      }
+      if (decoded is List && decoded.isNotEmpty) {
+        final first = decoded.first;
+        if (first is Map<String, dynamic>) {
+          return Map<String, dynamic>.from(first);
+        }
+        if (first is Map) {
+          return Map<String, dynamic>.from(first.cast<String, dynamic>());
+        }
+      }
+    } catch (_) {
+      await prefs.remove(name);
+    }
+    return null;
+  }
+
+  Future<void> writeSingleton(String name, Map<String, dynamic> value) async {
+    final prefs = await _prefs;
+    final payload = jsonEncode(value);
     await prefs.setString(name, payload);
   }
 
